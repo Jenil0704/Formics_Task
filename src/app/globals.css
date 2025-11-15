@@ -25,3 +25,21 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.fc-dark .fc-day-sat,
+.fc-day-sun {
+  background-color: #f0eded !important; /* light grey */
+}
+/* .fc-dark .fc {
+  background: #1e1e1e;
+  color: #fff;
+}
+
+.fc-dark .fc-daygrid-day {
+  background: #252525;
+}
+
+.fc-dark .fc-button-primary {
+  background: #444;
+  border-color: #444;
+} */

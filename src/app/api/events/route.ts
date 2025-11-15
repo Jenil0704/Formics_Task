@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "../../../../lib/prisma";
+import { getSession } from "../../../../lib/getSession";
 
 // Helper function to expand recurring events into individual occurrences
 function expandRecurringEvents(events: any[]): any[] {
   const expandedEvents: any[] = [];
-  const endDate = new Date();
-  endDate.setFullYear(endDate.getFullYear() + 1); // Generate events for 1 year ahead
 
   // Day name to day of week mapping (0 = Sunday, 1 = Monday, etc.)
   const dayNameToNumber: { [key: string]: number } = {
@@ -35,11 +34,20 @@ function expandRecurringEvents(events: any[]): any[] {
       return;
     }
 
+    // Determine recurrence end date: use recurrenceEndDate if set, otherwise default to 1 year ahead
+    let recurrenceEndDate: Date;
+    if (event.recurrenceEndDate) {
+      recurrenceEndDate = new Date(event.recurrenceEndDate);
+    } else {
+      recurrenceEndDate = new Date();
+      recurrenceEndDate.setFullYear(recurrenceEndDate.getFullYear() + 1);
+    }
+
     // Handle recurring events
     if (event.frequency === "daily") {
       // Daily: repeat every day
       let currentDate = new Date(baseStart);
-      while (currentDate <= endDate) {
+      while (currentDate <= recurrenceEndDate) {
         const occurrenceEnd = new Date(currentDate.getTime() + duration);
         expandedEvents.push({
           id: `${event.id}-${currentDate.toISOString()}`,
@@ -74,13 +82,13 @@ function expandRecurringEvents(events: any[]): any[] {
       // Start from the beginning of the week containing the base start date
       currentDate.setDate(currentDate.getDate() - currentDate.getDay());
 
-      while (currentDate <= endDate) {
+      while (currentDate <= recurrenceEndDate) {
         // Check each day of the week
         for (let i = 0; i < 7; i++) {
           const checkDate = new Date(currentDate);
           checkDate.setDate(checkDate.getDate() + i);
 
-          if (dayNumbers.includes(checkDate.getDay()) && checkDate >= baseStart && checkDate <= endDate) {
+          if (dayNumbers.includes(checkDate.getDay()) && checkDate >= baseStart && checkDate <= recurrenceEndDate) {
             const occurrenceStart = new Date(checkDate);
             occurrenceStart.setHours(baseStart.getHours(), baseStart.getMinutes(), baseStart.getSeconds());
             const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
@@ -101,7 +109,7 @@ function expandRecurringEvents(events: any[]): any[] {
       let currentDate = new Date(baseStart);
       const originalDay = baseStart.getDate();
       
-      while (currentDate <= endDate) {
+      while (currentDate <= recurrenceEndDate) {
         const occurrenceEnd = new Date(currentDate.getTime() + duration);
         expandedEvents.push({
           id: `${event.id}-${currentDate.toISOString()}`,
@@ -129,18 +137,51 @@ function expandRecurringEvents(events: any[]): any[] {
 // GET → List all events
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const keyword = searchParams.get("keyword") || "";
+  const startDate = searchParams.get("start");
+  const endDate = searchParams.get("end");
   const expand = searchParams.get("expand") === "true";
 
+  const session = await getSession();
+  console.log("Session:", session);
+
+  // Only return events for authenticated users
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = parseInt(session.user.id, 10);
+
+  const where: any = { userId };
+
+  if (keyword) {
+    where.OR = [
+      { title: { contains: keyword, mode: "insensitive" } },
+      { description: { contains: keyword, mode: "insensitive" } },
+    ];
+  }
+
+  if (startDate) {
+    where.startDate = { gte: new Date(startDate) };
+  }
+
+  if (endDate) {
+    where.endDate = { lte: new Date(endDate) };
+  }
+
   const events = await prisma.event.findMany({
+    where,
     orderBy: { createdAt: "desc" },
   });
 
+  console.log(events);
+  
+  // Expand recurring events for calendar view if requested
   if (expand) {
-    // Expand recurring events into individual occurrences (for calendar view)
     const expandedEvents = expandRecurringEvents(events);
     return NextResponse.json(expandedEvents);
   } else {
-    // Return original events in list format (for list view)
+    // Format events for list view
     const formattedEvents = events.map((event) => ({
       id: event.id,
       title: event.title,
@@ -149,16 +190,28 @@ export async function GET(req: Request) {
       endDate: event.endDate.toISOString(),
       isRecurring: event.isRecurring,
       frequency: event.frequency,
-      daysOfWeek: event.daysOfWeek,
+      daysOfWeek: event.daysOfWeek, // "Monday, Wednesday"
+      recurrenceEndDate: event.recurrenceEndDate
+        ? event.recurrenceEndDate.toISOString()
+        : null,
     }));
+
     return NextResponse.json(formattedEvents);
   }
 }
 
+
 // POST → Create event
 export async function POST(req: Request) {
   try {
+    const session = await getSession();
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
+    const userId = parseInt(session.user.id);
 
     const event = await prisma.event.create({
       data: {
@@ -169,6 +222,8 @@ export async function POST(req: Request) {
         isRecurring: body.isRecurring,
         frequency: body.frequency,
         daysOfWeek: body.daysOfWeek || null,
+        recurrenceEndDate: body.recurrenceEndDate ? new Date(body.recurrenceEndDate) : null,
+        userId,
       },
     });
 

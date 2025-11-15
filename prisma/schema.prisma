@@ -10,15 +10,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  name      String?
+  password  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  events    Event[]
+}
+
 model Event {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  startDate   DateTime
-  endDate     DateTime
-  isRecurring Boolean
-  frequency   String?   // daily | weekly | monthly
-  daysOfWeek  Json?    // ["monday","wednesday"]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               Int       @id @default(autoincrement())
+  title            String
+  description      String?
+  startDate        DateTime
+  endDate          DateTime
+  isRecurring      Boolean
+  frequency        String?   // daily | weekly | monthly
+  daysOfWeek       Json?     // ["monday","wednesday"]
+  recurrenceEndDate DateTime? // When recurring events should stop
+  userId           Int
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
