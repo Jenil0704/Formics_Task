@@ -73,6 +73,8 @@ Clone the repository
 
 <img width="1919" height="979" alt="image" src="https://github.com/user-attachments/assets/47c21939-f757-499c-8627-5128faf81a5d" />
 
+<img width="1919" height="982" alt="image" src="https://github.com/user-attachments/assets/e37acabd-c7aa-4cc5-81fc-0feb5ccd472e" />
+
 <img width="1919" height="981" alt="image" src="https://github.com/user-attachments/assets/e2702aca-b41b-4e52-9496-17b354b97199" />
 
 <img width="1917" height="973" alt="image" src="https://github.com/user-attachments/assets/60658174-01d4-47f9-aaf6-ae23bc841e11" />
